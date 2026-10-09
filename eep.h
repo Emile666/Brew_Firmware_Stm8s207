@@ -30,7 +30,7 @@
 #define EEPARB_IP1            (0x0E) /* 16-bit */
 #define EEPARB_IP2            (0x10) /* 16-bit */
 #define EEPARB_IP3            (0x12) /* 16-bit */
-#define EEPARW_PORT           (0x14) /* 16-bit */
+#define EEPARB_HW_ID          (0x14) /* 16-bit */
 #define EEPARB_DEL_START_ENA  (0x16) /* 8-bit */
 #define EEPARB_DEL_START_TMR1 (0x18) /* 16-bit */
 #define EEPARB_DEL_START_TIME (0x1A) /* 16-bit */

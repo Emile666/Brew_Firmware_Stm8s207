@@ -42,7 +42,7 @@ extern char rs232_inbuf[];
 // Global variables
 uint8_t      local_ip[4]      = {0,0,0,0}; // local IP address, gets a value from init_WIZ550IO_module() -> dhcp_begin()
 uint16_t     local_port;                   // local port number read back from wiz550i module
-const char  *ebrew_revision   = "$Revision: 2.07 $"; // ebrew revision number
+const char  *ebrew_revision   = "$Revision: 2.08 $"; // ebrew revision number
 bool         ethernet_WIZ550i = true;		     // true = start WIZ550i at power-up
 
 // The following variables are defined in Udp.c
@@ -737,8 +737,6 @@ uint8_t init_WIZ550IO_module(void)
     } // if	
     
     x = udp_begin(EBREW_PORT_NR);           // init. UDP protocol
-    y = w5500_read_common_register(VERSIONR,bufr);
-    sprintf(s,"Version: 0x%02x\n",y);          uart_printf(s);
     sprintf(s,"udp_begin():%s, sock=%d\n",x ? "ok":"err",_sock);   uart_printf(s);
     x = w5500_read_socket_register(_sock, Sn_MR, bufr);
     sprintf(s,"Sn_MR=%d, ",x);                        uart_printf(s);

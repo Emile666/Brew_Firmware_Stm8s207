@@ -22,6 +22,7 @@
 #include "w5500.h"
 #include "socket.h"
 #include "uart.h"
+#include "eep.h"
 
 extern uint8_t dhcpLocalIp[4];
 extern uint8_t dhcpGatewayIp[4];
@@ -40,21 +41,38 @@ int Ethernet_begin(void)
   uint8_t tmp[4] = {0,0,0,0};
   int ret = 0;
   char s[35];
-  	  
+  uint16_t ver = 0x00;
+  
   // Initialize the basic info
   uart_printf("w5500_init():");
   w5500_init();
   w5500_write_common_register(SIPR,tmp);
-  uart_printf("ok\nread MAC: ");
+  ver = w5500_read_common_register(VERSIONR,tmp);
+  sprintf(s," ver. 0x%02x\nread MAC: ",ver);          
+  uart_printf(s);
   w5500_read_common_register(SHAR ,mac_address);
   sprintf(s,"%02x:%02x:%02x:%02x:%02x:%02x ",mac_address[0],mac_address[1],mac_address[2],mac_address[3],mac_address[4],mac_address[5]);
   uart_printf(s);
   if (!(mac_address[0] | mac_address[1] | mac_address[2] | mac_address[3] | mac_address[4] | mac_address[5]))
   {
-       uart_printf(": no WIZ550IO\n");
-       return ret; // 0: error, no WIZ550IO found
+       if (ver == 0x04)
+       {  // W5500_Lite found, set MAC address manually
+          mac_address[0] = 0x02; mac_address[1] = 0x08;
+          mac_address[2] = 0xDC; mac_address[3] = 0x1D;
+          mac_address[4] = 0x2B; 
+          mac_address[5] = eep_read8(EEPARB_HW_ID); // read HW ID
+          w5500_write_common_register(SHAR, mac_address);
+          uart_printf("\nW5500_Lite found, MAC-address set to ");
+          uart_printf("02:08:DC:1D:2B:01\n");
+       } // if
+       else
+       {
+          uart_printf(" : no W5500 found\n");
+          return ret; // 0: error, no WIZ550IO found
+       } // else
   } // if
-  else uart_printf("\ndhcp_begin():");
+  else uart_printf("\n");
+  uart_printf("dhcp_begin():");
   
   // Now try to get our config info from a DHCP server
   ret = dhcp_begin(mac_address);

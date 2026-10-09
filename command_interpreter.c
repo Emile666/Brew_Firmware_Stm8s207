@@ -594,6 +594,16 @@ uint8_t execute_single_command(char *s, bool rs232_udp)
                    pr(rs232_udp,s2); // print to UART or ETH
                    pre(rs232_udp);   // End print function
                } // else if
+               else if (num == 3)
+               {  // Set HW ID
+                  temp = atoi(&s[3]);
+                  if (temp > 100) rval = ERR_NUM; // error if HW ID > 100
+                  else
+                  {
+                    eep_write8(EEPARB_HW_ID, (uint8_t)temp); // HW ID is the last byte of the MAC-address
+                    if (ethernet_WIZ550i) init_WIZ550IO_module();
+                  } // else
+               } // else if
                else rval = ERR_NUM;
                break;
                

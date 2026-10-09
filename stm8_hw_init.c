@@ -171,6 +171,7 @@ uint8_t initialise_system_clock(uint8_t clk)
     while (CLK_SWCR_SWIF == 0);   //  Target clock source not ready  
     CLK_SWCR       = 0;           //  Reset the clock switch control register.
     CLK_SWCR_SWEN  = 1;           //  Enable switching.
+    CLK_ICKR_LSIEN = 1;           //  Enable LSI clock for BEEP function
     while (CLK_SWCR_SWBSY != 0);  //  Pause while the clock switch is busy.
     return CLK_CMSR;              //  Return which oscillator is active
 } // initialise_system_clock()
