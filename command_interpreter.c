@@ -592,12 +592,14 @@ uint8_t execute_single_command(char *s, bool rs232_udp)
                    } // if
                    else sprintf(s2,"USB mode (E0)\n");
                    pr(rs232_udp,s2); // print to UART or ETH
+                   sprintf(s2,"HW_ID:%d\n",(uint8_t)eep_read8(EEPARB_HW_ID));
+                   pr(rs232_udp,s2); // print to UART or ETH
                    pre(rs232_udp);   // End print function
                } // else if
                else if (num == 3)
                {  // Set HW ID
                   temp = atoi(&s[3]);
-                  if (temp > 100) rval = ERR_NUM; // error if HW ID > 100
+                  if (temp > 255) rval = ERR_NUM; // error if HW ID > 255
                   else
                   {
                     eep_write8(EEPARB_HW_ID, (uint8_t)temp); // HW ID is the last byte of the MAC-address

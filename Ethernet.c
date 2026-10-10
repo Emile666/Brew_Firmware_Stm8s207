@@ -61,9 +61,10 @@ int Ethernet_begin(void)
           mac_address[2] = 0xDC; mac_address[3] = 0x1D;
           mac_address[4] = 0x2B; 
           mac_address[5] = eep_read8(EEPARB_HW_ID); // read HW ID
-          w5500_write_common_register(SHAR, mac_address);
+          w5500_write_common_register(SHAR, mac_address); // write 6 bytes
           uart_printf("\nW5500_Lite found, MAC-address set to ");
-          uart_printf("02:08:DC:1D:2B:01\n");
+          sprintf(s,"02:08:DC:1D:2B:%02x\n",mac_address[5]);
+          uart_printf(s);
        } // if
        else
        {
