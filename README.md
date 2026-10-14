@@ -47,7 +47,7 @@ More hardware and firmware design details: see my website: http://www.vandelogt.
 ![frontpanel](img/brew_hw_stm8s207_v430.png)<br>
 *Top view of v4.30 PCB, as made by JLCPCB*
 
-This is version v4.30 and the second PCB made with KiCad (v10.0.5), earlier PCBs were created with Eagle. An interactive BOM for v4.30 is available [here](https://github.com/Emile666/Brew_HW_Stm8s207/blob/main/img/ibom.html).
+This is version v4.30 and the second PCB made with KiCad (v10.0.5), earlier PCBs were created with Eagle. An interactive BOM for v4.30 is available [here](http://htmlpreview.github.io/?https://github.com/Emile666/Brew_HW_Stm8s207/blob/main/img/ibom.html).
 Gerber files for v4.30 are found [here](https://github.com/Emile666/Brew_HW_Stm8s207/blob/main/img/Brew_HW_stm8s207_v430.zip).
 
 # Software Development Environment
