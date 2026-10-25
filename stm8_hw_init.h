@@ -25,27 +25,27 @@
       MCU pin-name            Function    |    MCU pin-name        Function
    ---------------------------------------|-----------------------------------------
    01 NRST                    <NRST>      | 64 PD7/TLI                SPI_CS_LEDS
-   02 PA1/OSCIN               XTAL 24 MHz | 63 PD6/UART3_RX           RX
-   03 PA2/OSCOUT              XTAL 24 MHz | 62 PD5/UART3_TX           TX
+   02 PA1/OSCIN               XTAL 24 MHz | 63 PD6/UART3_RX           RX3
+   03 PA2/OSCOUT              XTAL 24 MHz | 62 PD5/UART3_TX           TX3
    04 VSSIO_1                 GND         | 61 PD4(HS)/TIM2_CH1[BEEP] BUZZER
    05 VSS                     GND         | 60 PD3(HS)/TIM2_CH2       BK_SSR3
    06 VCAP                    <VCAP>      | 59 PD2(HS)/TIM3_CH1       BK_SSR2
    07 VDD                     +5V         | 58 PD1(HS)/SWIM           SWIM
    08 VDDIO_1                 +5V         | 57 PD0(HS)/TIM3_CH2       BK_SSR1
    09 PA3/TIM2_CH3[TIME3_CH1] -           | 56 PE0(HS)/CLK_CCO        FLOW2
-   10 PA4(HS)/UART1_RX        RX_DBG      | 55 PE1/I2C_SCL            SCL0
-   11 PA5(HS)/UART1_TX        TX_DBG      | 54 PE2/I2C_SDA            SDA0
+   10 PA4(HS)/UART1_RX        RX1_DBG     | 55 PE1/I2C_SCL            SCL0
+   11 PA5(HS)/UART1_TX        TX1_DBG     | 54 PE2/I2C_SDA            SDA0
    12 PA6(HS)/UART1_CK        FLOW1       | 53 PE3/TIM1_BKIN          SCL1
    13 PF7/AIN15               HLT_SSR3    | 52 PE4                    SDA1
    14 PF6/AIN14               HLT_SSR2    | 51 PG7                    SDA2
    15 PF5/AIN13               PUMP_230V   | 50 PG6                    SCL2
    16 PF4/AIN12               PUMP2_230V  | 49 PG5                    BG_LED 
    ---------------------------------------|-----------------------------------------
-   17 PF3/AIN11               HLT_SSR1    | 48 PI0                    SPI_RDY
+   17 PF3/AIN11               HLT_SSR1    | 48 PI0                    -
    18 VREF+                   +5V filt.   | 47 PG4                    IRQ_LED
-   19 VDDA                    +5V         | 46 PG3                    ALIVE_LED_B
-   20 VSSA                    GND         | 45 PG2                    ALIVE_LED_G
-   21 VREF-                   GND         | 44 PG1/CAN_RX             ALIVE_LED_R
+   19 VDDA                    +5V         | 46 PG3                    L3_DET
+   20 VSSA                    GND         | 45 PG2                    L2_DET
+   21 VREF-                   GND         | 44 PG1/CAN_RX             -
    22 PF0/AIN10               LM35        | 43 PG0/CAN_TX             SPI_RESET
    23 PB7/AIN7                VALVE8      | 42 PC7(HS)/SPI_MISO       SPI_MISO
    24 PB6/AIN6                VALVE7      | 41 PC6(HS)/SPI_MOSI       SPI_MOSI
@@ -71,7 +71,7 @@
 #define FLOW1       (0x40) /* PA6 */
 #define TX_DBG      (0x20) /* PA5 UART 1 */       
 #define RX_DBG      (0x10) /* PA4 UART 1 */       
-#define PA3         (0x08) /* FREE */
+#define PA3         (0x08) /* PA3 FREE */
 
 #define FLOW1b      (PA_IDR_IDR6)
 
@@ -107,8 +107,8 @@
 // PORT D defines
 //-----------------------------
 #define SPI_CS_LEDS (0x80) /* PD7 chip-select for MAX7219 */
-#define RX          (0x40) /* PD6 UART 3 */
-#define TX          (0x20) /* PD5 UART 3 */
+#define RX3         (0x40) /* PD6 UART 3 */
+#define TX3         (0x20) /* PD5 UART 3 */
 #define BUZZER      (0x10) /* PD4 Buzzer */
 #define BK_SSR3     (0x08) /* Boil-kettle slow SSR output 3, electric heating */
 #define BK_SSR2     (0x04) /* Boil-kettle slow SSR output 2, electric heating */
@@ -165,19 +165,19 @@
 #define SCL2        (0x40) /* PG6 */       
 #define BG_LED      (0x20) /* PG5, shows background process status */       
 #define IRQ_LED     (0x10) /* PG4, shows interrupt status */       
-#define ALIVE_LED_B (0x08) /* PG3 */
-#define ALIVE_LED_G (0x04) /* PG2 */
-#define ALIVE_LED_R (0x02) /* PG1 */
-#define ALIVE_LEDS  (ALIVE_LED_B | ALIVE_LED_G | ALIVE_LED_R)
+#define L3_DET      (0x08) /* PG3 Power-phase 3 detection */
+#define L2_DET      (0x04) /* PG2 Power-phase 2 detection */
+#define PG1         (0x02) /* PG1 FREE */
 #define SPI_NRESET  (0x01) /* PG0, hardware reset for WIZ550io module */
 
+// use these defines to directly read the input-pins
+#define L3_DETb     (PG_IDR_IDR3)
+#define L2_DETb     (PG_IDR_IDR2)
+
 // use these defines to directly control the output-pins
-#define BG_LEDb      (PG_ODR_ODR5)
-#define IRQ_LEDb     (PG_ODR_ODR4)
-#define ALIVE_LED_Bb (PG_ODR_ODR3)
-#define ALIVE_LED_Gb (PG_ODR_ODR2)
-#define ALIVE_LED_Rb (PG_ODR_ODR1)
-#define SPI_NRESETb  (PG_ODR_ODR0)
+#define BG_LEDb     (PG_ODR_ODR5)
+#define IRQ_LEDb    (PG_ODR_ODR4)
+#define SPI_NRESETb (PG_ODR_ODR0)
 
 //----------------------------------------------------------
 // Defines for the Frontpanel LEDs connected to the MAX7219
@@ -200,6 +200,7 @@
 #define MAX7219D2F3   (0x04) /* Spare 3 */
 #define MAX7219D2F2   (0x02) /* Spare 2 */
 #define MAX7219D2F1   (0x01) /* Spare 1 */
+/* DIG3 is represented by phases_present */
 
 //-----------------------------
 // Buzer STD modes

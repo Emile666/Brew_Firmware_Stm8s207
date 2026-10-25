@@ -38,6 +38,7 @@ extern uint8_t    crc8;
 extern bool       ethernet_WIZ550i;
 extern uint8_t    local_ip[4];         // local IP address received from dhcp_begin()
 extern const char *ebrew_revision;     // ebrew CVS revision number
+extern uint8_t    phases_present;      // bit 0: Phase 1 (always set), bit 1: Phase L2, bit 2: Phase L3
 
 extern uint8_t    hlt_elec1_pwm;       // PWM signal (0-100 %) for HLT Electric heating-element 1
 extern uint8_t    hlt_elec2_pwm;       // PWM signal (0-100 %) for HLT Electric heating-element 2
@@ -466,6 +467,8 @@ void list_all_tasks(bool rs232_udp)
      D1           : Set time in minutes for delayed-start and enable delayed-start
      D2           : Get remaining time in minutes for delayed-start
    - E0 / E1      : Ethernet with WIZ550io Disabled / Enabled
+     E2           : get status of Ethernet / USB connection
+     E3           : set HW ID, byte is used as last byte of MAC-address
    - H0...H100    : PID-output for HLT, needed for:
                     - PWM output for modulating gas-valve (N0=0)
                     - Time-Division ON/OFF signal for Non-Modulating gas-valve (N0=1)
@@ -477,6 +480,7 @@ void list_all_tasks(bool rs232_udp)
      S1		  : List all connected I2C devices  
      S2           : List all tasks
      S3           : List One-Wire devices
+     S4           : List power-phases present, bit2=L3, bit1=L2, bit0=1=L1
    - V0...V255    : Output bits for valves V1 until V8
    - X0...X8      : Sound buzzer x times
  
@@ -620,8 +624,8 @@ uint8_t execute_single_command(char *s, bool rs232_udp)
                if (num > 1) rval = ERR_NUM;
                else
                {
-                   if (num) { ALIVE_LED_Bb = 1; max7219dig2 |=  MAX7219D2LV; }
-                   else     { ALIVE_LED_Bb = 0; max7219dig2 &= ~MAX7219D2LV; }
+                   if (num) { max7219dig2 |=  MAX7219D2LV; }
+                   else     { max7219dig2 &= ~MAX7219D2LV; }
                } // else
                break;
            
@@ -680,8 +684,12 @@ uint8_t execute_single_command(char *s, bool rs232_udp)
                        process_temperatures(tcfc_err,s2,tcfc_temp_87,1);    // Tcfc_ow
                        pr(rs232_udp,s2); // print to UART or ETH
                        break;
-                   default: rval = ERR_NUM;
-                   break;
+                   case 4: // List power-phases present
+                       sprintf(s2,"Phases:%d\n",phases_present);
+                       pr(rs232_udp,s2); // print to UART or ETH
+                       break;
+              default: rval = ERR_NUM;
+                       break;
                } // switch
                pre(rs232_udp);   // End print function
                break;

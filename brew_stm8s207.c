@@ -42,8 +42,9 @@ extern char rs232_inbuf[];
 // Global variables
 uint8_t      local_ip[4]      = {0,0,0,0}; // local IP address, gets a value from init_WIZ550IO_module() -> dhcp_begin()
 uint16_t     local_port;                   // local port number read back from wiz550i module
-const char  *ebrew_revision   = "$Revision: 2.09 $"; // ebrew revision number
-bool         ethernet_WIZ550i = true;		     // true = start WIZ550i at power-up
+const char  *ebrew_revision   = "$Revision: 2.10 $"; // ebrew revision number
+bool         ethernet_WIZ550i = true;	   // true = start WIZ550i at power-up
+uint8_t      phases_present   = PHASE_L1;  // bit 0: Phase 1 (always set), bit 1: Phase L2, bit 2: Phase L3
 
 // The following variables are defined in Udp.c
 extern uint8_t  remoteIP[4]; // remote IP address for the incoming packet whilst it's being processed 
@@ -235,12 +236,10 @@ void process_delayed_start(void)
     if ((led_tmr_max > 0) && (++led_tmr > led_tmr_max))
     {    // blink once every led_tmr_max seconds
         led_tmr      = 0;
-        ALIVE_LED_Rb = 1; // red LED on
         max7219dig2 |= MAX7219D2DS; // Frontpanel LED on
     } // if
     else 
     {
-        ALIVE_LED_Rb = 0; // red LED off
         max7219dig2 &= ~MAX7219D2DS; // Frontpanel LED off
     } // else
 } // process_delayed_start()
@@ -415,8 +414,8 @@ void pwm_task(void)
 		HLT temperature is both filtered and slope-limited.
 	     2) processes the temperature from the LM35 temperature sensor. 
 		This sensor is connected to ADC0. The LM35 outputs 10 mV/°C,
-		VREF=1.1 V, therefore => Max. Temp. = 11000 E-2 °C
-		Conversion constant = 11000 / 1023 = 10.7526882
+		VREF=5.0 V, therefore => Max. Temp. = 50000 E-2 °C
+		Conversion constant = 50000 / 1023 = 48.87585533
              3) executes the delayed-start function, which will fire the
 		HLT burner after a number of minutes set by the D0 command.
 
@@ -451,17 +450,21 @@ void thlt_task(void)
 } // thlt_task()
 
 /*--------------------------------------------------------------------
-  Purpose  : This is the task that processes the temperature from
-	     the Mash-Lauter Tun (MLT). The first sensor to read is the
-	     LM92 (I2C sensor). If that one is not present, the DS18B20
-	     (One-Wire sensor) is tried. Since both sensors have 4
-	     fractional bits (1/2, 1/4, 1/8, 1/16), a signed Q8.4 format
-	     would be sufficient. However all variables are stored in a
-	     Q8.7 format for accuracy reasons when filtering. All variables
-	     with this format have the extension _87.
-	     The MLT temperature is both filtered and slope-limited.
-	     This task is called every 2 seconds and uses the output from
-	     ow_task(), which delivers a new DS18B20 reading every 2 seconds.
+  Purpose  : This task is called every 2 seconds and does the following:
+             1) processes the temperature from the Mash-Lauter Tun (MLT). 
+                The first sensor to read is the LM92 (I2C sensor). If 
+                that one is not present, the DS18B20 (One-Wire sensor) 
+                is tried. It uses the output from ow_task(), which delivers
+                a new DS18B20 reading every 2 seconds.
+                Since both sensors have 4 fractional bits (1/2, 1/4, 1/8, 1/16),
+                a signed Q8.4 format would be sufficient. However all variables 
+                are stored in a Q8.7 format for accuracy reasons when filtering. 
+                All variables with this format have the extension _87. The 
+                MLT temperature is both filtered and slope-limited.
+             2) handles the power-phase detection. There are in total 3 power-
+                supply phases, phase L1 powers the uC itself, so this is always 1.
+                Other phases are read-in with the phase detection bits.
+
   Variables: tmlt_old_87   : previous value of tmlt_temp_87
 	     temp_slope_87 : the slope-limit: 2 °C/sec.
 	     tmlt_err      : 1 = error reading from LM92 (I2C)
@@ -482,6 +485,14 @@ void tmlt_task(void)
         slope_limiter(temp_slope_87, tmlt_old_87, &tmp);
         tmlt_temp_87 = (int16_t)(moving_average(&tmlt_ma, (float)tmp) + 0.5);
     } // else
+    // Power-supply phase detection
+    if (L3_DETb)
+         phases_present |=  PHASE_L3;
+    else phases_present &= ~PHASE_L3;
+    if (L2_DETb)
+         phases_present |=  PHASE_L2;
+    else phases_present &= ~PHASE_L2;
+    max7219_write(MAX7219_DIG3 | phases_present); // Write phases_present to MAX7219 DIG3
 } // tmlt_task()
 
 /*--------------------------------------------------------------------

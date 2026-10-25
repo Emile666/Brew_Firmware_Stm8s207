@@ -79,6 +79,13 @@ typedef struct _pwmtime
 #define EL_HTR_OFF (1)
 #define EL_HTR_ON  (2)
 
+//-----------------------------
+// Defines for phases_present
+//-----------------------------
+#define PHASE_L1 (0x01) /* power-supply phase L1 */
+#define PHASE_L2 (0x02) /* power-supply phase L2 */
+#define PHASE_L3 (0x04) /* power-supply phase L3 */
+
 //-------------------------------
 // INIT_TEMP  20 °C
 // LM35_CONV: 50000 E-2 °C / 1023

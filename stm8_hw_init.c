@@ -287,8 +287,10 @@ void setup_gpio_ports(void)
     
     // PG5 is free
     PG_ODR     |=  (SCL2 | SDA2); // Must be set here, or I2C will not work
-    PG_DDR     |=  (SCL2 | SDA2 | IRQ_LED | BG_LED | ALIVE_LEDS | SPI_NRESET); // Set as outputs
-    PG_CR1     |=  (SCL2 | SDA2 | IRQ_LED | BG_LED | ALIVE_LEDS | SPI_NRESET); // Set to push-pull
+    PG_DDR     |=  (SCL2 | SDA2 | IRQ_LED | BG_LED | SPI_NRESET); // Set as outputs
+    PG_CR1     |=  (SCL2 | SDA2 | IRQ_LED | BG_LED | SPI_NRESET); // Set to push-pull
+    PG_DDR     &= ~(L2_DET | L3_DET); // set to inputs
+    PG_CR1     &= ~(L2_DET | L3_DET); // Enable pull-up
     PG_ODR     |=  SPI_NRESET; // disable active-low reset for Wiz550io device
-    PG_ODR     &= ~(IRQ_LED | BG_LED | ALIVE_LEDS); // disable leds
+    PG_ODR     &= ~(IRQ_LED | BG_LED); // disable leds
 } // setup_gpio_ports()
