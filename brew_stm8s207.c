@@ -43,7 +43,7 @@ extern char rs232_inbuf[];
 // Global variables
 uint8_t      local_ip[4]      = {0,0,0,0}; // local IP address, gets a value from init_WIZ550IO_module() -> dhcp_begin()
 uint16_t     local_port;                   // local port number read back from wiz550i module
-const char  *ebrew_revision   = "$Revision: 2.11 $"; // ebrew revision number
+const char  *ebrew_revision   = "$Revision: 2.12 $"; // ebrew revision number
 bool         ethernet_WIZ550i = true;	   // true = start WIZ550i at power-up
 uint8_t      phases_present   = PHASE_L1;  // bit 0: Phase 1 (always set), bit 1: Phase L2, bit 2: Phase L3
 
@@ -178,7 +178,6 @@ void process_delayed_start(void)
     uint8_t         led_tmr_max = 0; // blink every x seconds  
     static uint8_t  led_tmr     = 0; // Timer for blinking of RED led
     static uint16_t eep_tmr;         // minute counter for eeprom write
-    static uint16_t timer2;          // timer for max. burn in minutes (max. 120 minutes)
     
     switch (delayed_start_std)
     {
@@ -201,8 +200,9 @@ void process_delayed_start(void)
             } // if				 
             else if (++delayed_start_timer1 >= delayed_start_time)
             {   // delayed-start counted down
-                timer2            = 0;              // init. burn-timer 
-                delayed_start_std = DEL_START_BURN; // start HLT burner
+                delayed_start_timer1 = 0;                       // init. burn-timer 
+                delayed_start_time   = DEL_START_MAX_BURN_TIME; // max. burn-time
+                delayed_start_std    = DEL_START_BURN;          // start HLT burner
             } // if
             if (++eep_tmr >= 30)
             {   // save in eeprom every minute
@@ -216,13 +216,15 @@ void process_delayed_start(void)
             if (!delayed_start_enable)
             {
                 eep_write8(EEPARB_DEL_START_ENA,false); // reset enable in eeprom
-                delayed_start_std = DEL_START_INIT;
+                delayed_start_std    = DEL_START_INIT;
+                delayed_start_timer1 = 0;
+                delayed_start_time   = 0;
                 process_pwm_signal(PWM_HLT,0,ELEC_HTR1|ELEC_HTR2|ELEC_HTR3); // disable heaters
             } // if
             else 
             {	// For delayed start: only enable HLT electric heaters with fixed percentage	 
                 process_pwm_signal(PWM_HLT,DEL_START_ELEC_PWM,ELEC_HTR1|ELEC_HTR2|ELEC_HTR3);
-                if (++timer2 >= DEL_START_MAX_BURN_TIME) 
+                if (++delayed_start_timer1 >= delayed_start_time) 
                 {   // Safety feature, set burn-time to max. of 2 hours
                     delayed_start_enable = false; // prevent another burn
                     delayed_start_std    = DEL_START_INIT;
@@ -694,7 +696,7 @@ void print_ebrew_revision(char *ver)
     
     strcpy(ver, "E-Brew stm8s207 rev.");  // welcome message, assure that all is well!
     len = strlen(ebrew_revision) - 13;  // just get the rev. number
-    strncpy(s,&ebrew_revision[11],len); // example: " 1.3"
+    strncpy(s,&ebrew_revision[11],len); // example: " 2.11"
     s[len]   = '\n';
     s[len+1] = '\0';
     strcat(ver,s);

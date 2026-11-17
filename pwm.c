@@ -19,6 +19,9 @@
   ================================================================== */ 
 #include "pwm.h"
 
+uint8_t hlt_gas_pwm; // duty-cycle for gas-burner HLT
+uint8_t bk_gas_pwm;  // duty-cycle for gas-burner Boil-kettle
+
 /*------------------------------------------------------------------
   Purpose  : This function writes a duty-cycle to a timer, so that a
              PWM signal is generated.
@@ -44,13 +47,15 @@ void pwm_write(uint8_t pwm_ch, uint8_t duty_cycle) // duty_cyle varies 0 % and 1
     lsb  = temp & 0xFF;
     if (pwm_ch == PWM_HLT)
     {   // HLT
-        TIM1_CCR1H = msb; //  msb, write this first
-        TIM1_CCR1L = lsb; //  lsb
+        hlt_gas_pwm = duty_cycle; // save for webserver
+        TIM1_CCR1H  = msb;        // msb, write this first
+        TIM1_CCR1L  = lsb;        // lsb
     } // if
     else
     {   // Boil-kettle
-        TIM1_CCR2H = msb; //  msb, write this first
-        TIM1_CCR2L = lsb; //  lsb
+        bk_gas_pwm = duty_cycle; // save for webserver
+        TIM1_CCR2H = msb;        //  msb, write this first
+        TIM1_CCR2L = lsb;        //  lsb
     } // else
 } // pwm_write()
 

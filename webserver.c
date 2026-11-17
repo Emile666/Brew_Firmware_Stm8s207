@@ -24,24 +24,107 @@
 
 extern uint16_t Ethernet_server_port[]; // defined in Ethernet.c
 extern uint8_t  enable_webserver;       // defined in brew_stm8s207.c
+extern uint8_t  hlt_elec1_pwm;
+extern uint8_t  hlt_elec2_pwm;
+extern uint8_t  hlt_elec3_pwm;
+extern uint8_t  bk_elec1_pwm;
+extern uint8_t  bk_elec2_pwm;
+extern uint8_t  bk_elec3_pwm;
+extern uint8_t  hlt_gas_pwm;          // duty-cycle for gas-burner HLT
+extern uint8_t  bk_gas_pwm;           // duty-cycle for gas-burner Boil-kettle
+extern uint8_t  delayed_start_std;    // std number, start in INIT state
+extern uint16_t delayed_start_timer1; // actual counter (in 2-sec ticks -> /30 = min)
+extern uint16_t delayed_start_time;   // total time (in 2-sec ticks -> /30 = min)
+extern const char *ebrew_revision;    // ebrew revision number
+extern int16_t    thlt_temp_87;       // THLT Temperature in °C * 128
+extern int16_t    tmlt_temp_87;       // THLT Temperature in °C * 128
+extern int16_t    thlt_ow_87;         // THLT Temperature in °C * 128
+extern int16_t    thlt_ow2_87;        // THLT Temperature from 2nd DS18B20 in °C * 128
+extern int16_t    tmlt_ow_87;         // TMLT Temperature in °C * 128
+extern int16_t    tmlt_ow2_87;        // TMLT Temperature from 2nd DS18B20 in °C * 128
+extern int16_t    tcfc_temp_87;       // TCFC Temperature in °C * 128
+extern int16_t    tboil_temp_87;      // TBOIL Temperature in °C * 128
+
+static inline uint8_t max_u8(uint8_t a, uint8_t b)
+{
+    return (a > b) ? a : b;
+}
 
 const char HTML_PAGE1[] =
     "<!DOCTYPE HTML><html><head>"
     "<title>Brew Controller</title>"
-    "<style>body{font-family:Arial;text-align:center;margin-top:40px;}"
-    ".on{color:green;font-weight:bold;}.off{color:red;font-weight:bold;}</style>";
-const char HTML_PAGE2[] =
+    "<style>"
+    "body{font-family:Arial;text-align:center;margin-top:20px;}"
+    ".box{border:1px solid #ccc;border-radius:8px;max-width:300px;margin:12px auto;padding:10px;}"
+    ".on{color:green;font-weight:bold;}"
+    ".off{color:red;font-weight:bold;}"
+    ".wait{color:orange;font-weight:bold;}"
+    "p{margin:6px 0;}"
+    "</style>"
     "</head><body>"
-    "<h1>Brew STM8S207 Webserver</h1>"
-    "<p>Pump Status: <span id=\"p\" class=\"off\">--</span></p>"
-    "<script>";
-const char HTML_PAGE3[] =
+    "<h1>Brew STM8S207 Webserver r";
+
+const char HTML_PAGE2[] =
+    "</h1>"
+    "<div class=\"box\"><h3>Delayed Start</h3>"
+    "<p>Status: <span id=\"dse\" class=\"off\">--</span></p>"
+    "<p>Time: <b><span id=\"dst1\">--</span>/<span id=\"dst2\">--</span> min</b></p>"
+    "</div>"
+
+    "<div class=\"box\"><h3>Temperatures</h3>"
+    "<p>THLT: <b><span id=\"thlt\">--</span> &deg;C, <span id=\"thlt1\">--</span> &deg;C, <span id=\"thlt2\">--</span> &deg;C</b></p>"
+    "<p>TMLT: <b><span id=\"tmlt\">--</span> &deg;C, <span id=\"tmlt1\">--</span> &deg;C, <span id=\"tmlt2\">--</span> &deg;C</b></p>"
+    "<p>TBOIL: <b><span id=\"tbk\">--</span> &deg;C</b></p>"
+    "<p>TCFC: <b><span id=\"tcfc\">--</span> &deg;C</b></p>"
+    "</div>"
+      
+    "<div class=\"box\"><h3>Pumps</h3>"
+    "<p>P1: <span id=\"p1\" class=\"off\">--</span></p>"
+    "<p>P2: <span id=\"p2\" class=\"off\">--</span></p>"
+    "</div>"
+
+    "<div class=\"box\"><h3>HLT</h3>"
+    "<p>Gas: <span id=\"hg\" class=\"off\">--</span></p>"
+    "<p>E1: <span id=\"h1\" class=\"off\">--</span></p>"
+    "<p>E2: <span id=\"h2\" class=\"off\">--</span></p>"
+    "<p>E3: <span id=\"h3\" class=\"off\">--</span></p>"
+    "<p>PWR: <b><span id=\"hp\">--</span> %</b></p>"
+    "</div>"
+
+    "<div class=\"box\"><h3>Boil Kettle</h3>"
+    "<p>Gas: <span id=\"bg\" class=\"off\">--</span></p>"
+    "<p>E1: <span id=\"b1\" class=\"off\">--</span></p>"
+    "<p>E2: <span id=\"b2\" class=\"off\">--</span></p>"
+    "<p>E3: <span id=\"b3\" class=\"off\">--</span></p>"
+    "<p>PWR: <b><span id=\"bp\">--</span> %</b></p>"
+    "</div>"
+
+    "<script>"
+    "function setSt(id,v){let e=document.getElementById(id);"
+    "e.innerText=v?'ON':'OFF';e.className=v?'on':'off';}"
+    "function setDs(v){let e=document.getElementById('dse');"
+    "if(v==1){e.innerText='Delay';e.className='wait';}"
+    "else if(v==2){e.innerText='Started';e.className='on';}"
+    "else{e.innerText='OFF';e.className='off';}}"
     "function upd(){fetch('/status').then(r=>r.json()).then(d=>{"
-    "let e=document.getElementById('p');"
-    "e.innerText=d.pump?'ON':'OFF';"
-    "e.className=d.pump?'on':'off';"
+    "setDs(d.dse);"
+    "document.getElementById('thlt').innerText=d.thlt;"
+    "document.getElementById('thlt1').innerText=d.thlt1;"
+    "document.getElementById('thlt2').innerText=d.thlt2;"
+    "document.getElementById('tmlt').innerText=d.tmlt;"
+    "document.getElementById('tmlt1').innerText=d.tmlt1;"
+    "document.getElementById('tmlt2').innerText=d.tmlt2;"
+    "document.getElementById('tbk').innerText=d.tbk;"
+    "document.getElementById('tcfc').innerText=d.tcfc;"
+    "document.getElementById('dst1').innerText=d.dst1;"
+    "document.getElementById('dst2').innerText=d.dst2;"
+    "setSt('p1',d.p1);setSt('p2',d.p2);"
+    "setSt('hg',d.hg);setSt('h1',d.h1);setSt('h2',d.h2);setSt('h3',d.h3);"
+    "document.getElementById('hp').innerText=d.hp;"
+    "setSt('bg',d.bg);setSt('b1',d.b1);setSt('b2',d.b2);setSt('b3',d.b3);"
+    "document.getElementById('bp').innerText=d.bp;"
     "});}"
-    "upd();setInterval(upd,1000);"
+    "setTimeout(upd,500);setInterval(upd,1000);"
     "</script></body></html>";
 
 const char *html_header =
@@ -54,6 +137,55 @@ const char *json_header =
     "Content-Type: application/json\r\n"
     "Cache-Control: no-cache\r\n"
     "Connection: close\r\n\r\n";
+
+/*-----------------------------------------------------------------------
+  Purpose  : This function sends a big string in parts of 250 bytes
+  Variables: -
+  Returns  : -
+  -----------------------------------------------------------------------*/
+void send_chunked(const char *str)
+{
+    size_t total_len = strlen(str);
+    size_t offset = 0;
+
+    while (offset < total_len)
+    {
+        size_t chunk = total_len - offset;
+        if (chunk > 250)
+        {
+            chunk = 250;
+        }
+        EthernetClient_write((const uint8_t *)(str + offset), chunk);
+        offset += chunk;
+    } // while
+} // send_chunked()
+
+void temp87tos(char *name, int16_t val_87)
+{
+   uint16_t temp, frac_16, v87;
+   char     s2[12];
+   
+   name[0] = '\0';
+   if (val_87 < 0) 
+   {
+       v87 = (uint16_t)(-val_87); // make positive if negative
+       strcat(name,"-");
+   } // if
+   else v87 =  (uint16_t)val_87;
+   
+   temp     = v87 >> 7;           // The integer part of the sensor value
+   frac_16  = v87 & 0x007f;       // The fractional part of the sensor value
+   frac_16 *= 25;                 // 100 / 128 = 25 / 32
+   frac_16 += 16;                 // 0.5 for rounding
+   frac_16 >>= 5;                 // SHR 5 = divide by 32
+   if (frac_16 >= 100)            // Voorkom .100 bij afronden van .996
+   {
+       temp++;
+       frac_16 = 0;
+   } // if
+   sprintf(s2,"%u.%02u" ,temp,frac_16);
+   strcat(name,s2);               // store result back in *name
+} // temp87tos()
 
 /*-----------------------------------------------------------------------
   Purpose  : This function inits the the web-server on port 80
@@ -73,7 +205,7 @@ void init_webserver(void)
     EthernetServer_begin();
 
     // Find which socket was claimed by EthernetServer_begin() for port 80
-    for (uint8_t x = 0; x < MAX_SOCK_NUM; x++)
+    for (x = 0; x < MAX_SOCK_NUM; x++)
     {
         if (Ethernet_server_port[x] == 80)
         {
@@ -119,14 +251,13 @@ void run_webserver(void)
     int len = 0;
     bool got_1st_line = false;
     uint32_t start_time = millis();
-
+    
     // Check enable flag FIRST so we don't touch W5500 registers when disabled
     if (!enable_webserver || !EthernetServer_available())
         return;
-
-    // Read the first 63 bytes into req_buf, and drain the rest of the headers
+    
     while (EthernetClient_connected() && (millis() - start_time < 500))
-    {
+    {   // Read the first 63 bytes into req_buf, and drain the rest of the headers
         int avail = EthernetClient_available();
         if (avail > 0)
         {
@@ -141,8 +272,7 @@ void run_webserver(void)
                 } // if
             } // if
             else
-            {
-                // Drain remaining header bytes from the W5500 RX buffer
+            {   // Drain remaining header bytes from the W5500 RX buffer
                 uint8_t dummy[64];
                 int to_read = (avail < (int)sizeof(dummy)) ? avail : (int)sizeof(dummy);
                 int dlen = EthernetClient_read(dummy, to_read);
@@ -158,24 +288,57 @@ void run_webserver(void)
         } // if
     } // while
     if (got_1st_line)
-    {
-        // 1. JSON request for pump status
+    {   // 1. JSON request for pump status
         if (strncmp(req_buf, "GET /status", 11) == 0)
         {
-            char json_buf[32];
-            uint8_t pump_state = PUMP_230Vb ? 1 : 0; // Read GPIO pin PE5
+            char json_buf[250];
+            char sthlt[10], sthlt1[10], sthlt2[10], stmlt[10];
+            char stmlt1[10], stmlt2[10], stbk[10], stcfc[10];
+            uint8_t  dse  = delayed_start_std;
+            uint16_t dst1 = delayed_start_timer1 / 30;
+            uint16_t dst2 = delayed_start_time / 30;
+            uint8_t p1    = PUMP_230Vb  ? 1 : 0; // Read GPIO pin PF5
+            uint8_t p2    = PUMP2_230Vb ? 1 : 0; // Read GPIO pin PF4
+            uint8_t hg    = HLT_230Vb   ? 1 : 0; // Read GPIO pin PC3
+            uint8_t h1    = hlt_elec1_pwm > 0 ? 1 : 0;
+            uint8_t h2    = hlt_elec2_pwm > 0 ? 1 : 0;
+            uint8_t h3    = hlt_elec3_pwm > 0 ? 1 : 0; 
+            uint8_t hp    = max_u8(max_u8(hlt_elec1_pwm,hlt_elec2_pwm),
+                                   max_u8(hlt_elec3_pwm,hlt_gas_pwm));
+            uint8_t bg    = BOIL_230Vb   ? 1 : 0; // Read GPIO pin PC4
+            uint8_t b1    = bk_elec1_pwm > 0 ? 1 : 0;
+            uint8_t b2    = bk_elec2_pwm > 0 ? 1 : 0;
+            uint8_t b3    = bk_elec3_pwm > 0 ? 1 : 0; 
+            uint8_t bp    = max_u8(max_u8(bk_elec1_pwm,bk_elec2_pwm),
+                                   max_u8(bk_elec3_pwm,bk_gas_pwm));
+            temp87tos(sthlt ,thlt_temp_87);
+            temp87tos(stmlt ,tmlt_temp_87);
+            temp87tos(sthlt1,thlt_ow_87);
+            temp87tos(sthlt2,thlt_ow2_87);
+            temp87tos(stmlt1,tmlt_ow_87);
+            temp87tos(stmlt2,tmlt_ow2_87);
+            temp87tos(stbk  ,tboil_temp_87);
+            temp87tos(stcfc ,tcfc_temp_87);
 
-            snprintf(json_buf, sizeof(json_buf), "{\"pump\":%u}", pump_state);
+            snprintf(json_buf, sizeof(json_buf),
+             "{\"dse\":%u,\"dst1\":%u,\"dst2\":%u,"
+              "\"thlt\":\"%s\",\"thlt1\":\"%s\",\"thlt2\":\"%s\","
+              "\"tmlt\":\"%s\",\"tmlt1\":\"%s\",\"tmlt2\":\"%s\","
+              "\"tbk\":\"%s\",\"tcfc\":\"%s\","
+              "\"p1\":%u,\"p2\":%u,\"hg\":%u,\"h1\":%u,\"h2\":%u,\"h3\":%u,\"hp\":%u,"
+              "\"bg\":%u,\"b1\":%u,\"b2\":%u,\"b3\":%u,\"bp\":%u}",
+              dse, dst1, dst2, 
+              sthlt, sthlt1, sthlt2, stmlt, stmlt1, stmlt2, stbk, stcfc,
+              p1, p2, hg, h1, h2, h3, hp, bg, b1, b2, b3, bp);
             EthernetClient_write((const uint8_t *)json_header, strlen(json_header));
             EthernetClient_write((const uint8_t *)json_buf, strlen(json_buf));
         } // if
-        // 2. Main webpage request
         else
-        {
+        {   // 2. Main webpage request
             EthernetClient_write((const uint8_t *)html_header, strlen(html_header));
-            EthernetClient_write((const uint8_t *)HTML_PAGE1 , strlen(HTML_PAGE1));
-            EthernetClient_write((const uint8_t *)HTML_PAGE2 , strlen(HTML_PAGE2));
-            EthernetClient_write((const uint8_t *)HTML_PAGE3 , strlen(HTML_PAGE3));
+            send_chunked(HTML_PAGE1);
+            EthernetClient_write((const uint8_t *)&ebrew_revision[11], 4);
+            send_chunked(HTML_PAGE2);
         } // else
     } // if
     delay_msec(5);          // Give W5500 time to transmit the TCP packet
