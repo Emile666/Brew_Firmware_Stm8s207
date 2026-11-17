@@ -22,6 +22,7 @@
 
 extern bool ethernet_WIZ550i;
 extern bool delayed_start_enable; // true = delayed start is enabled
+extern uint8_t enable_webserver;  // 1 = webserver is enabled
 
 /*-----------------------------------------------------------------------------
   Purpose  : This function reads a (8-bit) value from the STM8 EEPROM.
@@ -115,7 +116,9 @@ void check_and_init_eeprom(void)
         eep_write8(EEPARB_DEL_START_ENA ,false); // delayed-start enable
         eep_write16(EEPARB_DEL_START_TMR1,0);    // delayed-start timer 1
         eep_write16(EEPARB_DEL_START_TIME,0);    // delayed-start time
+        eep_write8(EEPARB_WEBSERVER,0);          // disable webserver
     } // if
+    enable_webserver = eep_read8(EEPARB_WEBSERVER);
 } // check_and_init_eeprom()
 
 void read_eeprom_parameters(void)

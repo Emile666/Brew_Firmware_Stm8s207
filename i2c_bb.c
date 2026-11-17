@@ -251,8 +251,8 @@ int16_t lm92_read(enum I2C_CH ch, uint8_t *err)
         {
             temp = -temp; // negate number
         } // if
-        i2c_stop_bb(ch);
     } // else
+    i2c_stop_bb(ch);
     return temp;  // Return value now in °C << 7
 } // lm92_read()
 

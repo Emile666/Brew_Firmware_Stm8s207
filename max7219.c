@@ -27,7 +27,7 @@
              driver to the following:
 	     - No decode for digits 7-0
 	     - Set intensity to 15/32
-	     - Display digit 2-0
+	     - Display digit 3-0
 	     - Set normal operation
   Variables: -
   Returns  : -
@@ -37,12 +37,13 @@ void max7219_init(void)
     max7219_write(MAX7219_TEST);         // Normal operation
     max7219_write(MAX7219_DECD);         // No decode for digits 7-0
     max7219_write(MAX7219_INTNS | 0x05); // Set intensity to 7/32
-    max7219_write(MAX7219_SCANL | 0x02); // Display digits 0, 1 and 2
+    max7219_write(MAX7219_SCANL | 0x03); // Display digits 0, 1, 2 and 3
     max7219_write(MAX7219_SHUTD | 0x01); // Normal operation
     
     max7219_write(MAX7219_DIG0);         // reset digit 0
     max7219_write(MAX7219_DIG1);         // reset digit 1
     max7219_write(MAX7219_DIG2 | 0x80);  // reset digit 2, Alive LED on
+    max7219_write(MAX7219_DIG3);         // reset digit 3
 } // max7219_init()
 
 /*------------------------------------------------------------------

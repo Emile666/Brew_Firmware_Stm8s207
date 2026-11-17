@@ -34,6 +34,7 @@
 #define EEPARB_DEL_START_ENA  (0x16) /* 8-bit */
 #define EEPARB_DEL_START_TMR1 (0x18) /* 16-bit */
 #define EEPARB_DEL_START_TIME (0x1A) /* 16-bit */
+#define EEPARB_WEBSERVER      (0x1C) /* 8-bit */
 
 #define NO_INIT               (0xFF)
 #define USE_ETH               (0x00)

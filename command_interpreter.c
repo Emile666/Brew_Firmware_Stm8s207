@@ -106,6 +106,7 @@ extern uint16_t delayed_start_timer1;  // timer to countdown until delayed start
 
 extern  task_struct task_list[];      // struct with all tasks
 extern  uint8_t     max_tasks;
+extern  uint8_t     enable_webserver; // enable or disable webserver
 
 char    rs232_inbuf[UART_BUFLEN];     // buffer for RS232 commands
 uint8_t rs232_ptr = 0;                // index in RS232 buffer
@@ -469,6 +470,7 @@ void list_all_tasks(bool rs232_udp)
    - E0 / E1      : Ethernet with WIZ550io Disabled / Enabled
      E2           : get status of Ethernet / USB connection
      E3           : set HW ID, byte is used as last byte of MAC-address
+     E4 [0,1]     : enable (1) or disable (0) webserver
    - H0...H100    : PID-output for HLT, needed for:
                     - PWM output for modulating gas-valve (N0=0)
                     - Time-Division ON/OFF signal for Non-Modulating gas-valve (N0=1)
@@ -579,7 +581,7 @@ uint8_t execute_single_command(char *s, bool rs232_udp)
                } // else
                break;
                
-	   case 'e': // Enable/Disable Ethernet with WIZ550io
+	   case 'e': // Enable (E1) or Disable (E0) Ethernet with WIZ550io
                if (num < 2)
                {
                    if (num) ethernet_WIZ550i = true;
@@ -587,7 +589,7 @@ uint8_t execute_single_command(char *s, bool rs232_udp)
                    write_eeprom_parameters(); // save value in eeprom
                    if (ethernet_WIZ550i) init_WIZ550IO_module(); // this hangs the system if no WIZ550io is present!!!
                }
-               else if (num ==2)
+               else if (num == 2)
                {
                    pri(rs232_udp); // Init. print function
                    if (ethernet_WIZ550i)
@@ -597,6 +599,8 @@ uint8_t execute_single_command(char *s, bool rs232_udp)
                    else sprintf(s2,"USB mode (E0)\n");
                    pr(rs232_udp,s2); // print to UART or ETH
                    sprintf(s2,"HW_ID:%d\n",(uint8_t)eep_read8(EEPARB_HW_ID));
+                   pr(rs232_udp,s2); // print to UART or ETH
+                   sprintf(s2,"Webserver %s\n",(uint8_t)eep_read8(EEPARB_WEBSERVER) ? "ON" : "OFF");
                    pr(rs232_udp,s2); // print to UART or ETH
                    pre(rs232_udp);   // End print function
                } // else if
@@ -608,6 +612,20 @@ uint8_t execute_single_command(char *s, bool rs232_udp)
                   {
                     eep_write8(EEPARB_HW_ID, (uint8_t)temp); // HW ID is the last byte of the MAC-address
                     if (ethernet_WIZ550i) init_WIZ550IO_module();
+                  } // else
+               } // else if
+               else if (num == 4)
+               {  // enable of disable webserver 
+                  temp = atoi(&s[3]);
+                  if (temp > 1) rval = ERR_NUM; // error if not 0 or 1
+                  else 
+                  {
+                    enable_webserver = temp; // enable (1) or disable (0) webserver
+                    eep_write8(EEPARB_WEBSERVER, (uint8_t)temp); // webserver enable/disable
+                    pri(rs232_udp);   // Init. print function
+                    sprintf(s2,"Webserver %s\n", temp ? "enabled" : "disabled");
+                    pr(rs232_udp,s2); // print to UART or ETH
+                    pre(rs232_udp);   // End print function
                   } // else
                } // else if
                else rval = ERR_NUM;

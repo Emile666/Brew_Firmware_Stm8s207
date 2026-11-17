@@ -36,13 +36,14 @@
 #include "Udp.h"
 #include "one_wire.h"
 #include "max7219.h"
-      
+#include "webserver.h"
+    
 extern char rs232_inbuf[];
 
 // Global variables
 uint8_t      local_ip[4]      = {0,0,0,0}; // local IP address, gets a value from init_WIZ550IO_module() -> dhcp_begin()
 uint16_t     local_port;                   // local port number read back from wiz550i module
-const char  *ebrew_revision   = "$Revision: 2.10 $"; // ebrew revision number
+const char  *ebrew_revision   = "$Revision: 2.11 $"; // ebrew revision number
 bool         ethernet_WIZ550i = true;	   // true = start WIZ550i at power-up
 uint8_t      phases_present   = PHASE_L1;  // bit 0: Phase 1 (always set), bit 1: Phase L2, bit 2: Phase L3
 
@@ -51,6 +52,7 @@ extern uint8_t  remoteIP[4]; // remote IP address for the incoming packet whilst
 extern uint16_t remotePort;  // remote port for the incoming packet whilst it's being processed 
 extern uint8_t  _sock;       // socket ID for Wiz5100
 unsigned char   udp_rcv_buf[UDP_TX_PACKET_MAX_SIZE]; // buffer to hold incoming packet]
+uint8_t         enable_webserver; // enable or disable webserver
 
 // The following variables are needed for the buzzer
 extern bool     bz_on;      // true = buzzer is enabled
@@ -273,44 +275,42 @@ void init_pwm_time(pwmtime *p, uint8_t mask, bool on1st)
   ---------------------------------------------------------------------------*/
 void pwm_2_time(pwmtime *p, uint8_t cntr, uint8_t pwm)
 {
-	int8_t  bt,et;
-	
-	bt  = p->on1st ? 25 : 75; // time center-point
-	bt -= (pwm>>1);           // start-time for a 1
-	et  = bt + pwm;           // end-time for a 1
-	if      (bt < 0)   { bt = 0        ; et = pwm; }
-	else if (et > 100) { bt = 100 - pwm; et = 100; }
+    int8_t  bt,et;
+    
+    bt  = p->on1st ? 25 : 75; // time center-point
+    bt -= (pwm>>1);           // start-time for a 1
+    et  = bt + pwm;           // end-time for a 1
+    if      (bt < 0)   { bt = 0        ; et = pwm; }
+    else if (et > 100) { bt = 100 - pwm; et = 100; }
 
-	switch (p->std)
-	{
-		case EL_HTR_OFF:
-			//------------------------------------------------------------
-			// Goto ON-state if cntr in [bt,et] && pwm>0
-			//------------------------------------------------------------
-			elec_htrs &= ~p->mask;
-			if ((pwm > 0) && (cntr >= bt) && (cntr < et))
-			{  
-				p->std = EL_HTR_ON; // go to ON-state
-			} // if
-			// else: pwm=0 or outside 1-time, continue in this state
-			break;
-
-		case EL_HTR_ON:
-			//---------------------------------------------------------
-			// Goto OFF-state if pwm=0 or cntr>et && pwm<100
-			//---------------------------------------------------------
-			elec_htrs |= p->mask;       // set electric heater ON
-			if ((pwm == 0) || ((cntr >= et) && (pwm < 100)))
-			{   
-				p->std = EL_HTR_OFF;   // go to 'OFF' state
-			} // if
-			// else: pwm>0 && ((cntr < et) || (pwm>=100))
-			break;
-
-		default: 
-		    p->std = EL_HTR_OFF;
-		    break;	
-	} // switch 
+    switch (p->std)
+    {
+        case EL_HTR_OFF:
+            //------------------------------------------------------------
+            // Goto ON-state if cntr in [bt,et] && pwm>0
+            //------------------------------------------------------------
+            elec_htrs &= ~p->mask;
+            if ((pwm > 0) && (cntr >= bt) && (cntr < et))
+            {  
+                    p->std = EL_HTR_ON; // go to ON-state
+            } // if
+            // else: pwm=0 or outside 1-time, continue in this state
+            break;
+        case EL_HTR_ON:
+            //---------------------------------------------------------
+            // Goto OFF-state if pwm=0 or cntr>et && pwm<100
+            //---------------------------------------------------------
+            elec_htrs |= p->mask;       // set electric heater ON
+            if ((pwm == 0) || ((cntr >= et) && (pwm < 100)))
+            {   
+                    p->std = EL_HTR_OFF;   // go to 'OFF' state
+            } // if
+            // else: pwm>0 && ((cntr < et) || (pwm>=100))
+            break;
+        default: 
+            p->std = EL_HTR_OFF;
+            break;	
+    } // switch 
 } // pwm_2_time()
 
 /*-----------------------------------------------------------------------------
@@ -727,7 +727,7 @@ void print_IP_address(uint8_t *ip)
   -----------------------------------------------------------------------*/
 uint8_t init_WIZ550IO_module(void)
 {
-    char     s[30];   // Needed for uart_printf() and sprintf()
+    char     s[40];   // Needed for uart_printf() and sprintf()
     uint8_t  bufr[8]; // Needed for w5500_read_common_register()
     uint8_t  ret,x;
     uint16_t y;
@@ -747,16 +747,36 @@ uint8_t init_WIZ550IO_module(void)
         return 0;
     } // if	
     
+    //---------------------------------------------------------------
+    // 1. Start UDP server on port EBREW_PORT_NR
+    //---------------------------------------------------------------
     x = udp_begin(EBREW_PORT_NR);           // init. UDP protocol
-    sprintf(s,"udp_begin():%s, sock=%d\n",x ? "ok":"err",_sock);   uart_printf(s);
+    sprintf(s,"udp_begin():%s, sock=%d\n",x ? "ok":"err",_sock);   
+    uart_printf(s);
     x = w5500_read_socket_register(_sock, Sn_MR, bufr);
-    sprintf(s,"Sn_MR=%d, ",x);                        uart_printf(s);
+    sprintf(s,"MR=%d, ",x);                        
+    uart_printf(s);
     local_port = w5500_read_socket_register(_sock, Sn_PORT, bufr);
-    sprintf(s,"Sn_PORT=%d, ",local_port);		  uart_printf(s);
+    sprintf(s,"PORT=%d, ",local_port);		  
+    uart_printf(s);
+    x = w5500_read_socket_register(_sock, Sn_SR, bufr);
+    sprintf(s, "SR=0x%02X, ", x);                          
+    uart_printf(s);
     y = w5500_getTXFreeSize(_sock);
-    sprintf(s,"Sn_TXfree=%d, ",y);			  uart_printf(s);
+    sprintf(s,"TXfree=%d, ",y);			  
+    uart_printf(s);
     y = w5500_getRXReceivedSize(_sock);
-    sprintf(s,"Sn_RXrecv=%d\n",y);			  uart_printf(s);
+    sprintf(s,"RXrecv=%d\n",y);			  
+    uart_printf(s);
+    
+    //---------------------------------------------------------------
+    // 2. Init WEB-server on port 80
+    //---------------------------------------------------------------
+    init_webserver();
+    
+    //---------------------------------------------------------------
+    // 3. Print Network Configuration
+    //---------------------------------------------------------------
     w5500_read_common_register(GAR, bufr);
     uart_printf("Gateway IP : "); print_IP_address(bufr);
     w5500_read_common_register(SUBR, bufr);
@@ -776,7 +796,7 @@ uint8_t init_WIZ550IO_module(void)
   ------------------------------------------------------------------*/
 int main(void)
 {
-    char    s[30];     // Needed for uart_printf() and sprintf()
+    char    s[40];     // Needed for uart_printf() and sprintf()
     int	    udp_packet_size;
     uint8_t clk;       // which clock is active
     uint8_t x0,x1,x2;
@@ -894,6 +914,9 @@ int main(void)
                 udp_rcv_buf[udp_packet_size] = '\0';
                 ethernet_command_handler((char *)udp_rcv_buf);
             } // if	
+            
+            // 2. Handle incoming HTTP webserver requests
+            run_webserver();
         } // if
     } // while()
 } // main()

@@ -82,6 +82,13 @@ uint8_t socket(SOCKET s, uint8_t protocol, uint16_t port, uint8_t flag)
   return 0;
 } // socket()
 
+uint8_t socketStatus(SOCKET s)
+{
+  uint8_t  bufr[2]; // buffer for w5500_read_socket_register()
+  uint8_t  status = w5500_read_socket_register(s, Sn_SR, bufr);
+  return status;
+} // socketStatus()
+ 
 /**
  * @brief	This function close the socket and parameter is "s" which represent the socket number
  */
@@ -225,6 +232,12 @@ int16_t recv(SOCKET s, uint8_t *buf, int16_t len)
   } // if
   return ret;
 } // recv()
+
+int16_t recvAvailable(SOCKET s)
+{
+  int16_t ret = w5500_getRXReceivedSize(s); // Check how much data is available
+  return ret;
+} // recvAvailable()
 
 /**
  * @brief	Returns the first byte in the receive queue (no checking)

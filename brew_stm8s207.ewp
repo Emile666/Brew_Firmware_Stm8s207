@@ -1684,6 +1684,18 @@
         <name>$PROJ_DIR$\Ethernet.h</name>
     </file>
     <file>
+        <name>$PROJ_DIR$\EthernetClient.c</name>
+    </file>
+    <file>
+        <name>$PROJ_DIR$\EthernetClient.h</name>
+    </file>
+    <file>
+        <name>$PROJ_DIR$\EthernetServer.c</name>
+    </file>
+    <file>
+        <name>$PROJ_DIR$\EthernetServer.h</name>
+    </file>
+    <file>
         <name>$PROJ_DIR$\i2c_bb.c</name>
     </file>
     <file>
@@ -1760,5 +1772,11 @@
     </file>
     <file>
         <name>$PROJ_DIR$\w5500.h</name>
+    </file>
+    <file>
+        <name>$PROJ_DIR$\webserver.c</name>
+    </file>
+    <file>
+        <name>$PROJ_DIR$\webserver.h</name>
     </file>
 </project>

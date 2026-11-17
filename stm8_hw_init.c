@@ -180,6 +180,8 @@ uint8_t initialise_system_clock(uint8_t clk)
   Purpose  : This routine initialises Timer 2 to generate a 1 kHz interrupt.
              16 MHz: 16 MHz / (  16 *  1000) = 1000 Hz (1000 = 0x03E8)
              24 MHz: 24 MHz / (  16 *  1500) = 1000 Hz (1500 = 0x05DC)
+             It also inits Timer 1 which is set to a frequency of 24 kHz.
+             This is used for generating PWM signals for the gas valves.
   Variables: clk: HSE (24 MHz), HSI (16 MHz)
   Returns  : -
   ---------------------------------------------------------------------------*/
@@ -219,22 +221,6 @@ void setup_timers(uint8_t clk)
     TIM1_CCMR2_OC2M = 6;  //  PWM Mode 1 - active if counter < CCR2, inactive otherwise.
     TIM1_BKR_MOE    = 1;  //  Main Output enable
     TIM1_CR1_CEN    = 1;  //  Finally enable the timer
-    
-    // Set Timer 3 for a frequency of approx. 1 Hz, used for generating SSR signals
-    TIM3_PSCR  = 0x0F;    //  Prescaler = 16384
-    TIM3_ARRH  = 0x03;    //  High byte of 1000 (24 MHz / (2^15 * 1000) = 0.73 Hz)
-    TIM3_ARRL  = 0xE8;    //  Low  byte of 1000
-    TIM3_CCR1H = 0x01;    //  Test: duty-cycle of 30%
-    TIM3_CCR1L = 0x2C;    //        1000 * 0.30 = 300 = 0x12C
-    TIM3_CCR2H = 0x01;    //  Test: duty-cycle of 35%
-    TIM3_CCR2L = 0x5E;    //        1000 * 0.35 = 350 = 0x15E
-    TIM3_CCER1_CC1P = 0;  //  Active high channel 1
-    TIM3_CCER1_CC2P = 0;  //  Active high channel 2
-    TIM3_CCER1_CC1E = 1;  //  Capture compare channel 1 output enable
-    TIM3_CCER1_CC2E = 1;  //  Capture compare channel 2 output enable
-    TIM3_CCMR1_OC1M = 6;  //  PWM Mode 1 - active if counter < CCR1, inactive otherwise.
-    TIM3_CCMR2_OC2M = 6;  //  PWM Mode 1 - active if counter < CCR2, inactive otherwise.
-    TIM3_CR1_CEN    = 1;  //  Finally enable the timer
 } // setup_timers()
 
 /*-----------------------------------------------------------------------------
@@ -264,12 +250,11 @@ void setup_gpio_ports(void)
     // UART3 (PD6, PD5) is controlled by UART device
     // Buzzer (PD4) is enabled by setting AFR7 bit in OPT2 option byte,
     // Set ST-LINK->Option Bytes...->AFR7 to 'Alternate Active'
-    // PWM-outputs (PD2=HLT_SSR, PD0=BK_SSR) are controlled by Timer outputs
-    // SSR-outputs control 3-phase electric heating elements
-    PD_ODR     |=  SPI_CS_LEDS;                                          // MAX7219 CS is disabled
-    PD_DDR     |=  (SPI_CS_LEDS | BK_SSR3 | BK_SSR2 | BK_SSR1 | BUZZER); // SSR outputs
-    PD_CR1     |=  (SPI_CS_LEDS | BK_SSR3 | BK_SSR2 | BK_SSR1 | BUZZER); // Set to Push-Pull
-    PD_ODR     &= ~(BK_SSR3 | BK_SSR2 | BK_SSR1 | BUZZER);               // SSR Outputs are off
+    // SSR-outputs BK_SSR3, BK_SSR2, BK_SSR1 control 3-phase electric heating elements
+    PD_ODR     |=  SPI_CS_LEDS;                         // MAX7219 CS is disabled
+    PD_DDR     |=  (SPI_CS_LEDS | BK_SSR_ALL | BUZZER); // SSR outputs
+    PD_CR1     |=  (SPI_CS_LEDS | BK_SSR_ALL | BUZZER); // Set to Push-Pull
+    PD_ODR     &= ~(BK_SSR_ALL | BUZZER);               // SSR Outputs are off
     
     PE_ODR     |=  (SCL1 | SDA1 | SCL0 | SDA0 | SPI_SS); // Must be set here, or I2C will not work
     PE_DDR     |=  (SCL1 | SDA1 | SCL0 | SDA0 | SPI_SS); // Set as outputs
@@ -280,7 +265,7 @@ void setup_gpio_ports(void)
     EXTI_CR2_PEIS = 0x02;                       // PORTE external interrupt to falling edge only
     
     // LM35 (PF0) is controlled by ADC device, PF7-PF5 are free
-    // SSR-outputs control 3-phase electric heating elements
+    // SSR-outputs HLT_SSR3, HLT_SSR2, HLT_SSR1 control 3-phase electric heating elements
     PF_DDR     |=  (PUMP_230V | PUMP2_230V | HLT_SSR_ALL); // Set as outputs
     PF_CR1     |=  (PUMP_230V | PUMP2_230V | HLT_SSR_ALL); // Set to push-pull
     PF_ODR     &= ~(PUMP_230V | PUMP2_230V | HLT_SSR_ALL); // Disable pumps
