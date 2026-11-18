@@ -21,6 +21,7 @@
 #include "webserver.h"
 #include "delay.h"
 #include "uart.h"
+#include "max7219.h"
 
 extern uint16_t Ethernet_server_port[]; // defined in Ethernet.c
 extern uint8_t  enable_webserver;       // defined in brew_stm8s207.c
@@ -44,6 +45,7 @@ extern int16_t    tmlt_ow_87;         // TMLT Temperature in °C * 128
 extern int16_t    tmlt_ow2_87;        // TMLT Temperature from 2nd DS18B20 in °C * 128
 extern int16_t    tcfc_temp_87;       // TCFC Temperature in °C * 128
 extern int16_t    tboil_temp_87;      // TBOIL Temperature in °C * 128
+extern uint8_t    max7219dig2;        // Frontpanel LEDs MAX7219 DIG2
 
 static inline uint8_t max_u8(uint8_t a, uint8_t b)
 {
@@ -55,11 +57,15 @@ const char HTML_PAGE1[] =
     "<title>Brew Controller</title>"
     "<style>"
     "body{font-family:Arial;text-align:center;margin-top:20px;}"
-    ".box{border:1px solid #ccc;border-radius:8px;max-width:300px;margin:12px auto;padding:10px;}"
+    ".box{border:1px solid #ccc;border-radius:8px;max-width:420px;margin:12px auto;padding:10px;}"
     ".on{color:green;font-weight:bold;}"
     ".off{color:red;font-weight:bold;}"
     ".wait{color:orange;font-weight:bold;}"
     "p{margin:6px 0;}"
+    ".vgrid{display:grid;grid-template-columns:1fr 1fr;gap:8px 16px;}"
+    ".vrow{display:flex;justify-content:center;align-items:center;gap:6px;font-size:14px;}"
+    ".vrow span{min-width:48px;text-align:center;}"
+    "input[type=range]{width:68px;cursor:pointer;}"
     "</style>"
     "</head><body>"
     "<h1>Brew STM8S207 Webserver r";
@@ -79,8 +85,10 @@ const char HTML_PAGE2[] =
     "</div>"
       
     "<div class=\"box\"><h3>Pumps</h3>"
-    "<p>P1: <span id=\"p1\" class=\"off\">--</span></p>"
-    "<p>P2: <span id=\"p2\" class=\"off\">--</span></p>"
+    "<div class=\"vgrid\">"
+    "<div class=\"vrow\"><b>P1</b><span id=\"p1\" class=\"off\">--</span><input type=\"range\" min=\"0\" max=\"2\" value=\"1\" onchange=\"sp(1,this)\"></div>"
+    "<div class=\"vrow\"><b>P2</b><span id=\"p2\" class=\"off\">--</span><input type=\"range\" min=\"0\" max=\"2\" value=\"1\" onchange=\"sp(2,this)\"></div>"
+    "</div>"
     "</div>"
 
     "<div class=\"box\"><h3>HLT</h3>"
@@ -99,7 +107,25 @@ const char HTML_PAGE2[] =
     "<p>PWR: <b><span id=\"bp\">--</span> %</b></p>"
     "</div>"
 
+    "<div class=\"box\"><h3>Valves</h3>"
+    "<div class=\"vgrid\" id=\"vlist\"></div>"
+    "</div>"
+      
     "<script>"
+    "let vh='';"
+    "for(let i=1;i<=8;i++){"
+    "vh+='<div class=\"vrow\"><b>V'+i+'</b>'"
+    "+'<span id=\"v'+i+'\" class=\"off\">--</span>'"
+    "+'<input type=\"range\" min=\"0\" max=\"2\" value=\"1\" onchange=\"sw('+i+',this)\"></div>';}"
+    "document.getElementById('vlist').innerHTML=vh;"
+    "function sw(v,el){"
+    "if(el.value==2)fetch('/vcmd?v='+v+'&s=1');"
+    "else if(el.value==0)fetch('/vcmd?v='+v+'&s=0');"
+    "setTimeout(()=>{el.value=1;},150);}"
+    "function sp(p,el){"
+    "if(el.value==2)fetch('/pcmd?p='+p+'&s=1');"
+    "else if(el.value==0)fetch('/pcmd?p='+p+'&s=0');"
+    "setTimeout(()=>{el.value=1;},150);}"      
     "function setSt(id,v){let e=document.getElementById(id);"
     "e.innerText=v?'ON':'OFF';e.className=v?'on':'off';}"
     "function setDs(v){let e=document.getElementById('dse');"
@@ -123,6 +149,8 @@ const char HTML_PAGE2[] =
     "document.getElementById('hp').innerText=d.hp;"
     "setSt('bg',d.bg);setSt('b1',d.b1);setSt('b2',d.b2);setSt('b3',d.b3);"
     "document.getElementById('bp').innerText=d.bp;"
+    "for(let i=0;i<8;i++){let e=document.getElementById('v'+(i+1));"
+    "let st=(d.vv>>i)&1;e.innerText=st?'OPEN':'CLOSE';e.className=st?'on':'off';}"
     "});}"
     "setTimeout(upd,500);setInterval(upd,1000);"
     "</script></body></html>";
@@ -291,9 +319,9 @@ void run_webserver(void)
     {   // 1. JSON request for pump status
         if (strncmp(req_buf, "GET /status", 11) == 0)
         {
-            char json_buf[250];
-            char sthlt[10], sthlt1[10], sthlt2[10], stmlt[10];
-            char stmlt1[10], stmlt2[10], stbk[10], stcfc[10];
+            char json_buf[255];
+            char sthlt[10] , sthlt1[10], sthlt2[10], stmlt[10];
+            char stmlt1[10], stmlt2[10], stbk[10]  , stcfc[10];
             uint8_t  dse  = delayed_start_std;
             uint16_t dst1 = delayed_start_timer1 / 30;
             uint16_t dst2 = delayed_start_time / 30;
@@ -311,6 +339,7 @@ void run_webserver(void)
             uint8_t b3    = bk_elec3_pwm > 0 ? 1 : 0; 
             uint8_t bp    = max_u8(max_u8(bk_elec1_pwm,bk_elec2_pwm),
                                    max_u8(bk_elec3_pwm,bk_gas_pwm));
+            uint8_t vv    = PB_ODR; // read status of all valves
             temp87tos(sthlt ,thlt_temp_87);
             temp87tos(stmlt ,tmlt_temp_87);
             temp87tos(sthlt1,thlt_ow_87);
@@ -326,13 +355,70 @@ void run_webserver(void)
               "\"tmlt\":\"%s\",\"tmlt1\":\"%s\",\"tmlt2\":\"%s\","
               "\"tbk\":\"%s\",\"tcfc\":\"%s\","
               "\"p1\":%u,\"p2\":%u,\"hg\":%u,\"h1\":%u,\"h2\":%u,\"h3\":%u,\"hp\":%u,"
-              "\"bg\":%u,\"b1\":%u,\"b2\":%u,\"b3\":%u,\"bp\":%u}",
+              "\"bg\":%u,\"b1\":%u,\"b2\":%u,\"b3\":%u,\"bp\":%u,\"vv\":%u}",
               dse, dst1, dst2, 
               sthlt, sthlt1, sthlt2, stmlt, stmlt1, stmlt2, stbk, stcfc,
-              p1, p2, hg, h1, h2, h3, hp, bg, b1, b2, b3, bp);
+              p1, p2, hg, h1, h2, h3, hp, bg, b1, b2, b3, bp, vv);
             EthernetClient_write((const uint8_t *)json_header, strlen(json_header));
             EthernetClient_write((const uint8_t *)json_buf, strlen(json_buf));
         } // if
+        else if (strncmp(req_buf, "GET /vcmd?", 10) == 0)
+        {   // switch valve with "GET /vcmd?v=1&s=1" (of s=0)
+            // Positie 12 = klepnummer ('1'..'8'), positie 16 = gewenste stand ('0' of '1')
+            uint8_t v_nr  = (uint8_t)(req_buf[12] - '0');
+            uint8_t state = (uint8_t)(req_buf[16] - '0');
+
+            if (v_nr >= 1 && v_nr <= 8)
+            {
+                uint8_t mask = (uint8_t)(1U << (v_nr - 1));
+                if (state == 1)
+                {
+                    PB_ODR |= mask;  // Zet bit (V1 = bit 0 .. V8 = bit 7)
+                } // if
+                else if (state == 0)
+                {
+                    PB_ODR &= ~mask; // Wis bit
+                } // else if
+                max7219_write(MAX7219_DIG1 | PB_ODR); // write valve bits to frontpanel LEDs
+            } // if
+            const char *ok_resp = "HTTP/1.1 204 No Content\r\nConnection: close\r\n\r\n";
+            EthernetClient_write((const uint8_t *)ok_resp, strlen(ok_resp));
+        } // else if
+        else if (strncmp(req_buf, "GET /pcmd?", 10) == 0)
+        {   // Schakel pomp met "GET /pcmd?p=1&s=1" (of s=0)
+            // Positie 12 = pompnummer ('1' of '2'), positie 16 = gewenste stand ('0' of '1')
+            uint8_t p_nr  = (uint8_t)(req_buf[12] - '0');
+            uint8_t state = (uint8_t)(req_buf[16] - '0');
+
+            if (p_nr == 1)
+            {
+                if (state == 1)
+                {
+                    PUMP_230Vb = 1; 
+                    max7219dig2 |=  MAX7219D2P1;
+                } // if
+                else
+                {
+                    PUMP_230Vb = 0;
+                    max7219dig2 &= ~MAX7219D2P1;
+                } // else    
+            } // if
+            else if (p_nr == 2)
+            {
+                if (state == 1)
+                {
+                    PUMP2_230Vb = 1; 
+                    max7219dig2 |=  MAX7219D2P2;
+                } // if
+                else
+                {
+                    PUMP2_230Vb = 0;
+                    max7219dig2 &= ~MAX7219D2P2;
+                } // else    
+            } // else if
+            const char *ok_resp = "HTTP/1.1 204 No Content\r\nConnection: close\r\n\r\n";
+            EthernetClient_write((const uint8_t *)ok_resp, strlen(ok_resp));
+        } // else if
         else
         {   // 2. Main webpage request
             EthernetClient_write((const uint8_t *)html_header, strlen(html_header));

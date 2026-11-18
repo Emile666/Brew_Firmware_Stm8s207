@@ -43,7 +43,7 @@ extern char rs232_inbuf[];
 // Global variables
 uint8_t      local_ip[4]      = {0,0,0,0}; // local IP address, gets a value from init_WIZ550IO_module() -> dhcp_begin()
 uint16_t     local_port;                   // local port number read back from wiz550i module
-const char  *ebrew_revision   = "$Revision: 2.12 $"; // ebrew revision number
+const char  *ebrew_revision   = "$Revision: 2.13 $"; // ebrew revision number
 bool         ethernet_WIZ550i = true;	   // true = start WIZ550i at power-up
 uint8_t      phases_present   = PHASE_L1;  // bit 0: Phase 1 (always set), bit 1: Phase L2, bit 2: Phase L3
 
