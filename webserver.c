@@ -18,6 +18,7 @@
   along with this software.  If not, see <http://www.gnu.org/licenses/>.
   ================================================================== */ 
 #include <string.h>
+#include <stdlib.h>
 #include "webserver.h"
 #include "delay.h"
 #include "uart.h"
@@ -33,12 +34,13 @@ extern uint8_t  bk_elec2_pwm;
 extern uint8_t  bk_elec3_pwm;
 extern uint8_t  hlt_gas_pwm;          // duty-cycle for gas-burner HLT
 extern uint8_t  bk_gas_pwm;           // duty-cycle for gas-burner Boil-kettle
+extern bool     delayed_start_enable; // true = delayed start is enabled
 extern uint8_t  delayed_start_std;    // std number, start in INIT state
 extern uint16_t delayed_start_timer1; // actual counter (in 2-sec ticks -> /30 = min)
 extern uint16_t delayed_start_time;   // total time (in 2-sec ticks -> /30 = min)
-extern const char *ebrew_revision;    // ebrew revision number
+
 extern int16_t    thlt_temp_87;       // THLT Temperature in °C * 128
-extern int16_t    tmlt_temp_87;       // THLT Temperature in °C * 128
+extern int16_t    tmlt_temp_87;       // TMLT Temperature in °C * 128
 extern int16_t    thlt_ow_87;         // THLT Temperature in °C * 128
 extern int16_t    thlt_ow2_87;        // THLT Temperature from 2nd DS18B20 in °C * 128
 extern int16_t    tmlt_ow_87;         // TMLT Temperature in °C * 128
@@ -46,6 +48,7 @@ extern int16_t    tmlt_ow2_87;        // TMLT Temperature from 2nd DS18B20 in °C
 extern int16_t    tcfc_temp_87;       // TCFC Temperature in °C * 128
 extern int16_t    tboil_temp_87;      // TBOIL Temperature in °C * 128
 extern uint8_t    max7219dig2;        // Frontpanel LEDs MAX7219 DIG2
+extern const char *ebrew_revision;    // ebrew revision number
 
 static inline uint8_t max_u8(uint8_t a, uint8_t b)
 {
@@ -66,15 +69,18 @@ const char HTML_PAGE1[] =
     ".vrow{display:flex;justify-content:center;align-items:center;gap:6px;font-size:14px;}"
     ".vrow span{min-width:48px;text-align:center;}"
     "input[type=range]{width:68px;cursor:pointer;}"
+    "input[type=number]{width:58px;text-align:center;font-size:14px;padding:2px;}"
     "</style>"
     "</head><body>"
-    "<h1>Brew STM8S207 Webserver r";
+    "<h1>Brew STM8S207 Webserver rev.";
 
 const char HTML_PAGE2[] =
     "</h1>"
     "<div class=\"box\"><h3>Delayed Start</h3>"
-    "<p>Status: <span id=\"dse\" class=\"off\">--</span></p>"
-    "<p>Time: <b><span id=\"dst1\">--</span>/<span id=\"dst2\">--</span> min</b></p>"
+     "<div class=\"vrow\"><b>Status:</b><span id=\"dse\" class=\"off\">--</span>"
+    "<input type=\"range\" min=\"0\" max=\"2\" value=\"1\" onchange=\"sd(this)\"></div>"
+    "<p>Time: <b><span id=\"dst1\">--</span>/<span id=\"dst2\">--</span> min</b> &nbsp;"
+    "<input type=\"number\" id=\"dmin\" min=\"1\" max=\"1440\" value=\"60\"> min</p>"
     "</div>"
 
     "<div class=\"box\"><h3>Temperatures</h3>"
@@ -125,6 +131,11 @@ const char HTML_PAGE2[] =
     "function sp(p,el){"
     "if(el.value==2)fetch('/pcmd?p='+p+'&s=1');"
     "else if(el.value==0)fetch('/pcmd?p='+p+'&s=0');"
+    "setTimeout(()=>{el.value=1;},150);}"
+    "function sd(el){"
+    "let m=parseInt(document.getElementById('dmin').value)||0;"
+    "if(el.value==2)fetch('/dcmd?s=1&m='+m);"
+    "else if(el.value==0)fetch('/dcmd?s=0&m=0');"
     "setTimeout(()=>{el.value=1;},150);}"      
     "function setSt(id,v){let e=document.getElementById(id);"
     "e.innerText=v?'ON':'OFF';e.className=v?'on':'off';}"
@@ -279,6 +290,7 @@ void run_webserver(void)
     int len = 0;
     bool got_1st_line = false;
     uint32_t start_time = millis();
+    uint8_t  state;
     
     // Check enable flag FIRST so we don't touch W5500 registers when disabled
     if (!enable_webserver || !EthernetServer_available())
@@ -363,11 +375,11 @@ void run_webserver(void)
             EthernetClient_write((const uint8_t *)json_buf, strlen(json_buf));
         } // if
         else if (strncmp(req_buf, "GET /vcmd?", 10) == 0)
-        {   // switch valve with "GET /vcmd?v=1&s=1" (of s=0)
-            // Positie 12 = klepnummer ('1'..'8'), positie 16 = gewenste stand ('0' of '1')
+        {   // switch valve with "GET /vcmd?v=1&s=1" (or s=0)
+            // Position 12 = valve number ('1'..'8'), position 16 = valve state ('0' or '1')
             uint8_t v_nr  = (uint8_t)(req_buf[12] - '0');
-            uint8_t state = (uint8_t)(req_buf[16] - '0');
-
+            
+            state = (uint8_t)(req_buf[16] - '0');
             if (v_nr >= 1 && v_nr <= 8)
             {
                 uint8_t mask = (uint8_t)(1U << (v_nr - 1));
@@ -385,11 +397,11 @@ void run_webserver(void)
             EthernetClient_write((const uint8_t *)ok_resp, strlen(ok_resp));
         } // else if
         else if (strncmp(req_buf, "GET /pcmd?", 10) == 0)
-        {   // Schakel pomp met "GET /pcmd?p=1&s=1" (of s=0)
-            // Positie 12 = pompnummer ('1' of '2'), positie 16 = gewenste stand ('0' of '1')
+        {   // Switch Pump with "GET /pcmd?p=1&s=1" (or s=0)
+            // Position 12 = pump number ('1' of '2'), position 16 = pump state ('0' or '1')
             uint8_t p_nr  = (uint8_t)(req_buf[12] - '0');
-            uint8_t state = (uint8_t)(req_buf[16] - '0');
-
+            
+            state = (uint8_t)(req_buf[16] - '0');
             if (p_nr == 1)
             {
                 if (state == 1)
@@ -416,6 +428,25 @@ void run_webserver(void)
                     max7219dig2 &= ~MAX7219D2P2;
                 } // else    
             } // else if
+            const char *ok_resp = "HTTP/1.1 204 No Content\r\nConnection: close\r\n\r\n";
+            EthernetClient_write((const uint8_t *)ok_resp, strlen(ok_resp));
+        } // else if
+        else if (strncmp(req_buf, "GET /dcmd?", 10) == 0)
+        {   // Delayed start with "GET /dcmd?s=1&m=120" (or s=0&m=0)
+            // Position 12 = delayed start state ('0' of '1'), position 16 = timer value in minutes
+            uint16_t mins = (uint16_t)atoi(&req_buf[16]); 
+
+            state = (uint8_t)(req_buf[12] - '0');
+            if (state == 1 && mins > 0)
+            {
+                if (mins > 1440) mins = 1440;     // Max 24 hours: 1440 * 30 = 43200 ticks
+                delayed_start_time   = mins * 30; // Convert from minutes to 2 sec. intervals
+                delayed_start_enable = 1;         // Enable delayed start function
+            } // if
+            else if (state == 0)
+            {
+                delayed_start_enable = 0;         // Disable delayed start
+            } // if
             const char *ok_resp = "HTTP/1.1 204 No Content\r\nConnection: close\r\n\r\n";
             EthernetClient_write((const uint8_t *)ok_resp, strlen(ok_resp));
         } // else if

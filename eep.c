@@ -113,9 +113,6 @@ void check_and_init_eeprom(void)
         eep_write8(EEPARB_INIT  , 0x01);         // Eeprom init. flag
         eep_write8(EEPARB_ETHUSB, USE_USB);      // Default: Use USB
         eep_write8(EEPARB_HW_ID, 0x01);          // PCB HW ID number
-        eep_write8(EEPARB_DEL_START_ENA ,false); // delayed-start enable
-        eep_write16(EEPARB_DEL_START_TMR1,0);    // delayed-start timer 1
-        eep_write16(EEPARB_DEL_START_TIME,0);    // delayed-start time
         eep_write8(EEPARB_WEBSERVER,0);          // disable webserver
     } // if
     enable_webserver = eep_read8(EEPARB_WEBSERVER);
@@ -126,13 +123,6 @@ void read_eeprom_parameters(void)
     if (eep_read8(EEPARB_ETHUSB) == USE_ETH)
          ethernet_WIZ550i = true;
     else ethernet_WIZ550i = false;
-    
-    if ((delayed_start_enable = eep_read8(EEPARB_DEL_START_ENA)) != true)
-    {
-        eep_write8(EEPARB_DEL_START_ENA ,false); // could also be 0xff the 1st time
-        eep_write16(EEPARB_DEL_START_TMR1,0);    // reset timer1 in eeprom
-        eep_write16(EEPARB_DEL_START_TIME,0);    // delayed-start time
-    } // if
 } // read_eeprom_parameters()
 
 void write_eeprom_parameters(void)

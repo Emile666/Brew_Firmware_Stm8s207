@@ -569,10 +569,7 @@ uint8_t execute_single_command(char *s, bool rs232_udp)
                            } // if						   
                            else 
                            {
-                               delayed_start_time = temp; // delayed-start time
-                               eep_write16(EEPARB_DEL_START_TIME,delayed_start_time);
-                               eep_write16(EEPARB_DEL_START_TMR1,0);   // reset timer
-                               eep_write8(EEPARB_DEL_START_ENA,true);  // write enable to eeprom
+                               delayed_start_time   = temp; // set delayed-start time
                                delayed_start_enable = true; // and go...
                            } // else
                        } // else

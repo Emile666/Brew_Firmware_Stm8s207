@@ -43,7 +43,7 @@ extern char rs232_inbuf[];
 // Global variables
 uint8_t      local_ip[4]      = {0,0,0,0}; // local IP address, gets a value from init_WIZ550IO_module() -> dhcp_begin()
 uint16_t     local_port;                   // local port number read back from wiz550i module
-const char  *ebrew_revision   = "$Revision: 2.13 $"; // ebrew revision number
+const char  *ebrew_revision   = "$Revision: 2.14 $"; // ebrew revision number
 bool         ethernet_WIZ550i = true;	   // true = start WIZ550i at power-up
 uint8_t      phases_present   = PHASE_L1;  // bit 0: Phase 1 (always set), bit 1: Phase L2, bit 2: Phase L3
 
@@ -158,7 +158,7 @@ uint32_t flow_old4     = 0UL;
 //------------------------------------------------
 bool     delayed_start_enable  = false;          // true = delayed start is enabled
 uint16_t delayed_start_time    = 0;              // delayed start time in 2 sec. counts 
-uint16_t delayed_start_timer1;                   // timer to countdown until delayed start
+uint16_t delayed_start_timer1  = 0;              // timer to countdown until delayed start
 uint8_t  delayed_start_std     = DEL_START_INIT; // std number, start in INIT state
 
 //------------------------------------------------
@@ -177,26 +177,23 @@ void process_delayed_start(void)
 {
     uint8_t         led_tmr_max = 0; // blink every x seconds  
     static uint8_t  led_tmr     = 0; // Timer for blinking of RED led
-    static uint16_t eep_tmr;         // minute counter for eeprom write
     
     switch (delayed_start_std)
     {
         case DEL_START_INIT: // Delayed-start is not enabled
             if (delayed_start_enable)
-            {
-                delayed_start_timer1 = eep_read16(EEPARB_DEL_START_TMR1); // read value from eeprom
-                delayed_start_time   = eep_read16(EEPARB_DEL_START_TIME); // read value from eeprom
-                eep_tmr              = 0;                      // reset eeprom minute timer
-                delayed_start_std    = DEL_START_TMR;          // start countdown timer
-            } // if				 
+            {   // delayed_start_time should be set by initiating function!
+                delayed_start_std = DEL_START_TMR; // start countdown timer
+            } // if
+            else delayed_start_timer1 = 0;
             led_tmr_max = 0; // no blinking
             break;
             
         case DEL_START_TMR: // The delayed-start timer is running, no time-out yet
             if (!delayed_start_enable)
             {
-                eep_write8(EEPARB_DEL_START_ENA,false); // reset enable in eeprom
-                delayed_start_std = DEL_START_INIT;
+                delayed_start_std  = DEL_START_INIT;
+                delayed_start_time = 0;
             } // if				 
             else if (++delayed_start_timer1 >= delayed_start_time)
             {   // delayed-start counted down
@@ -204,21 +201,14 @@ void process_delayed_start(void)
                 delayed_start_time   = DEL_START_MAX_BURN_TIME; // max. burn-time
                 delayed_start_std    = DEL_START_BURN;          // start HLT burner
             } // if
-            if (++eep_tmr >= 30)
-            {   // save in eeprom every minute
-                eep_tmr = 0;
-                eep_write16(EEPARB_DEL_START_TMR1,delayed_start_timer1);
-            } // if
             led_tmr_max = 5; // blink once every 10 seconds
             break;
             
         case DEL_START_BURN: // Delayed-start time-out, HLT-burner is burning
             if (!delayed_start_enable)
             {
-                eep_write8(EEPARB_DEL_START_ENA,false); // reset enable in eeprom
-                delayed_start_std    = DEL_START_INIT;
-                delayed_start_timer1 = 0;
-                delayed_start_time   = 0;
+                delayed_start_std  = DEL_START_INIT;
+                delayed_start_time = 0;
                 process_pwm_signal(PWM_HLT,0,ELEC_HTR1|ELEC_HTR2|ELEC_HTR3); // disable heaters
             } // if
             else 
@@ -228,14 +218,13 @@ void process_delayed_start(void)
                 {   // Safety feature, set burn-time to max. of 2 hours
                     delayed_start_enable = false; // prevent another burn
                     delayed_start_std    = DEL_START_INIT;
-                    eep_write8(EEPARB_DEL_START_ENA,false); // reset enable in eeprom
                 } // if
             } // else				 
             led_tmr_max = 1; // blink once every 4 seconds
             break;
             
         default: delayed_start_std = DEL_START_INIT;
-        break;
+            break;
     } // switch
     if ((led_tmr_max > 0) && (++led_tmr > led_tmr_max))
     {    // blink once every led_tmr_max seconds
@@ -816,8 +805,6 @@ int main(void)
     x0 = i2c_init_bb(I2C_CH0); // Init. I2C bus 0 for bit-banging
     x1 = i2c_init_bb(I2C_CH1); // Init. I2C bus 1 for bit-banging
     x2 = i2c_init_bb(I2C_CH2); // Init. I2C bus 2 for bit-banging
-    //pwm_write(PWM_BK ,0);    // Start with 0 % duty-cycle for Boil-kettle
-    //pwm_write(PWM_HLT,0);    // Start with 0 % duty-cycle for HLT
     spi_init();                // Init. SPI module: 3 MHz clock, Master mode, SPI mode 1
     max7219_init();            // Init. MAX7219 on SPI-bus
     
